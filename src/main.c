@@ -16,8 +16,20 @@ static void _enable_terminal_raw_mode() {
   atexit(_disable_terminal_raw_mode); // reset at program exit
 
   struct termios raw = _original_termios;
-  // don't echo input, don't wait till ENTER key to process input
-  raw.c_lflag &= ~(ECHO | ICANON);
+
+  raw.c_iflag &= ~(
+      IXON     // enable output control flow (c-s, c-q)
+      | ICRNL  // map '\r' to '\n'
+      );
+  raw.c_oflag &= ~(
+      OPOST    // no output processing, e.g., '\n' to '\r\n'
+      );
+  raw.c_lflag &= ~(
+      ECHO     // echo input
+      | ICANON // wait till ENTER key to process input
+      | ISIG   // enable signals INTR, QUIT, [D]SUSP (c-z, c-y, c-c)
+      | IEXTEN // enable DISCARD and LNEXT (c-v, c-o)
+      );
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
@@ -26,9 +38,9 @@ static void _process_user_input_from_stdin() {
   char ch;
   while (read(STDIN_FILENO, &ch, 1) && ch != 'q') {
     if (iscntrl(ch)) {
-      printf("%d\n", ch);
+      printf("%d\r\n", ch);
     } else {
-      printf("%d ('%c')\n", ch, ch);
+      printf("%d ('%c')\r\n", ch, ch);
     }
   }
 }
