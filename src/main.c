@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -52,13 +53,25 @@ static void _write_clear_screen(int fd) {
   _write_or_err(fd, "\x1b[2J", 4);
 }
 
+// Return 0 on success
+static int _write_set_cursor_pos(int out_fd, int row, int col) {
+  char buf[80];
+  int count = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", row, col);
+  return write(out_fd, buf, count) != count;
+}
+
 static void _write_set_cursor_to_topleft(int fd) {
-  _write_or_err(fd, "\x1b[H", 3); // default to \x1b[1;1H
+  if (_write_set_cursor_pos(fd, 1, 1)) {
+    _perror_and_exit("_write_set_cursor_to_topleft");
+  }
 }
 
 static void _write_draw_rows(const editor_state_t* state) {
   for (int y = 1; y <= state->screen_rows; y++) {
-    write(state->output_fd, "~\r\n", 3);
+    write(state->output_fd, "~", 1);
+    if (y < state->screen_rows) { // prevent forced terminal scrolling
+      write(state->output_fd, "\r\n", 2);
+    }
   }
 }
 
@@ -96,7 +109,7 @@ static void _enable_terminal_raw_mode() {
   raw.c_lflag &= ~(
       ECHO     // echo input
       | ICANON // wait till ENTER key to process input
-      | ISIG   // enable signals INTR, QUIT, [D]SUSP (c-z, c-y, c-c)
+      //| ISIG   // enable signals INTR, QUIT, [D]SUSP (c-z, c-y, c-c)
       | IEXTEN // enable DISCARD and LNEXT (c-v, c-o)
       );
   raw.c_cc[VMIN] = 1;    // `read` on terminal return immediately on any input
@@ -126,11 +139,50 @@ static void _refresh_screen(const editor_state_t* state) {
   _write_set_cursor_to_topleft(state->output_fd);
 }
 
+int _write_get_cursor_pos(int in_fd, int out_fd, int *row, int *col) {
+  char buf[80];
+  // query cursor position, response "\x1b[rows;cols"
+  if (write(out_fd, "\x1b[6n", 4) != 4) return -1;
+  for (unsigned int i = 0; i < sizeof(buf) - 1; i++) {
+    if (read(in_fd, &buf[i], 1) != 1) break;
+    if (buf[i] == 'R') break;
+  }
+  buf[sizeof(buf) - 1] = '\0';
+  if (buf[0] != '\x1b' || buf[1] != '[') return -1;
+  if (sscanf(&buf[2], "%d;%d", row, col) != 2) return -1;
+  return 0;
+}
+
+static void _write_query_screen_size(
+  int in_fd, int out_fd, int* rows, int* cols
+) {
+  int original_row, original_col;
+  _write_get_cursor_pos(in_fd, out_fd, &original_row, &original_col);
+  if (write(out_fd, "\x1b[9999C\x1b[9999B", 14) != 14) {
+    _perror_and_exit("_write_query_screen_size");
+  }
+  _write_get_cursor_pos(in_fd, out_fd, rows, cols);
+  if (_write_set_cursor_pos(out_fd, original_row, original_col)) {
+    _perror_and_exit("_write_query_screen_size");
+  }
+}
+
+static void _get_screen_size(int in_fd, int out_fd, int* rows, int* cols) {
+  struct winsize ws;
+  if (ioctl(out_fd, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+    _write_query_screen_size(in_fd, out_fd, rows, cols);
+  } else {
+    *rows = ws.ws_row;
+    *cols = ws.ws_col;
+  }
+}
+
 static void _init_editor_state(editor_state_t* state) {
   state->input_fd = STDIN_FILENO;
   state->output_fd = STDOUT_FILENO;
-  state->screen_rows = 80;
-  state->screen_cols = 160;
+  _get_screen_size(
+    state->input_fd, state->output_fd, &state->screen_rows, &state->screen_cols
+  );
 }
 
 int main() {
