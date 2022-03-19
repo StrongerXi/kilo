@@ -29,7 +29,7 @@ static int _read_or_err(int fd, void* buf, size_t count) {
   // In Cygwin, when read() times out it returns -1 with an errno of EAGAIN
   int ret = read(fd, buf, count);
   if (ret == -1 && errno != EAGAIN) {
-    _perror_and_exit("tcsetattr");
+    _perror_and_exit("read");
   }
   return ret;
 }
