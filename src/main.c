@@ -8,6 +8,13 @@
 // mimics what `ctrl` does in terminal
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+typedef struct {
+  int screen_rows;
+  int screen_cols;
+  int input_fd;
+  int output_fd;
+} editor_state_t;
+
 static void _perror_and_exit(const char *s);
 static void _clean_up_before_exit();
 
@@ -49,9 +56,9 @@ static void _write_set_cursor_to_topleft(int fd) {
   _write_or_err(fd, "\x1b[H", 3); // default to \x1b[1;1H
 }
 
-static void _write_draw_rows(int fd) {
-  for (int y = 1; y <= 80; y++) {
-    write(fd, "~\r\n", 3);
+static void _write_draw_rows(const editor_state_t* state) {
+  for (int y = 1; y <= state->screen_rows; y++) {
+    write(state->output_fd, "~\r\n", 3);
   }
 }
 
@@ -103,8 +110,8 @@ static char _read_key(int fd) {
   return ch;
 }
 
-static void _process_one_key_press(int fd) {
-  char ch = _read_key(fd);
+static void _process_one_key_press(editor_state_t* state) {
+  char ch = _read_key(state->input_fd);
   switch (ch) {
     case CTRL_KEY('q'):
       _clean_up_before_exit();
@@ -112,18 +119,27 @@ static void _process_one_key_press(int fd) {
   }
 }
 
-static void _refresh_screen(int fd) {
-  _write_clear_screen(fd);
-  _write_set_cursor_to_topleft(fd);
-  _write_draw_rows(fd);
-  _write_set_cursor_to_topleft(fd);
+static void _refresh_screen(const editor_state_t* state) {
+  _write_clear_screen(state->output_fd);
+  _write_set_cursor_to_topleft(state->output_fd);
+  _write_draw_rows(state);
+  _write_set_cursor_to_topleft(state->output_fd);
+}
+
+static void _init_editor_state(editor_state_t* state) {
+  state->input_fd = STDIN_FILENO;
+  state->output_fd = STDOUT_FILENO;
+  state->screen_rows = 80;
+  state->screen_cols = 160;
 }
 
 int main() {
   _enable_terminal_raw_mode();
+  editor_state_t state;
+  _init_editor_state(&state);
   while (1) {
-    _refresh_screen(STDOUT_FILENO);
-    _process_one_key_press(STDIN_FILENO);
+    _refresh_screen(&state);
+    _process_one_key_press(&state);
   }
   return 0;
 }
