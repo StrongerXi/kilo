@@ -34,6 +34,14 @@ static int _read_or_err(int fd, void* buf, size_t count) {
   return ret;
 }
 
+static int _write_or_err(int fd, void* buf, size_t count) {
+  int ret = write(fd, buf, count);
+  if (ret == -1) {
+    _perror_and_exit("write");
+  }
+  return ret;
+}
+
 static struct termios _original_termios;
 
 static void _disable_terminal_raw_mode() {
@@ -79,9 +87,15 @@ static void _process_one_key_press(int fd) {
   }
 }
 
+static void _refresh_screen(int fd) {
+  // look up VT100 escape sequences
+  _write_or_err(fd, "\x1b[2J", 4);
+}
+
 int main() {
   _enable_terminal_raw_mode();
   while (1) {
+    _refresh_screen(STDOUT_FILENO);
     _process_one_key_press(STDIN_FILENO);
   }
   return 0;
