@@ -25,11 +25,13 @@ static void _tcssetattr_or_err(int fd, int flags, const struct termios* termios)
   }
 }
 
-static void _read_or_err(int fd, void* buf, size_t count) {
+static int _read_or_err(int fd, void* buf, size_t count) {
   // In Cygwin, when read() times out it returns -1 with an errno of EAGAIN
-  if (read(fd, buf, count) == -1 && errno != EAGAIN) {
+  int ret = read(fd, buf, count);
+  if (ret == -1 && errno != EAGAIN) {
     _perror_and_exit("tcsetattr");
   }
+  return ret;
 }
 
 static struct termios _original_termios;
@@ -63,24 +65,24 @@ static void _enable_terminal_raw_mode() {
   _tcssetattr_or_err(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-// Return 0 on EOF
-static void _process_user_input_from_stdin() {
-  while (1) {
-    char ch = '\0';
-    _read_or_err(STDIN_FILENO, &ch, 1);
-    if (iscntrl(ch)) {
-      printf("%d\r\n", ch);
-    } else {
-      printf("%d ('%c')\r\n", ch, ch);
-    }
-    if (ch == CTRL_KEY('q')) {
-      break;
-    }
+static char _read_key(int fd) {
+  char ch;
+  while (_read_or_err(fd, &ch, 1) != 1);
+  return ch;
+}
+
+static void _process_one_key_press(int fd) {
+  char ch = _read_key(fd);
+  switch (ch) {
+    case CTRL_KEY('q'):
+      exit(0);
   }
 }
 
 int main() {
   _enable_terminal_raw_mode();
-  _process_user_input_from_stdin();
+  while (1) {
+    _process_one_key_press(STDIN_FILENO);
+  }
   return 0;
 }
