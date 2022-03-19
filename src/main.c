@@ -1,3 +1,5 @@
+#include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
@@ -22,7 +24,13 @@ static void _enable_terminal_raw_mode() {
 // Return 0 on EOF
 static void _process_user_input_from_stdin() {
   char ch;
-  while (read(STDIN_FILENO, &ch, 1) && ch != 'q');
+  while (read(STDIN_FILENO, &ch, 1) && ch != 'q') {
+    if (iscntrl(ch)) {
+      printf("%d\n", ch);
+    } else {
+      printf("%d ('%c')\n", ch, ch);
+    }
+  }
 }
 
 int main() {
