@@ -49,6 +49,12 @@ static void _write_set_cursor_to_topleft(int fd) {
   _write_or_err(fd, "\x1b[H", 3); // default to \x1b[1;1H
 }
 
+static void _write_draw_rows(int fd) {
+  for (int y = 1; y <= 80; y++) {
+    write(fd, "~\r\n", 3);
+  }
+}
+
 static void _perror_and_exit(const char *s) {
   _clean_up_before_exit();
   perror(s);
@@ -108,6 +114,8 @@ static void _process_one_key_press(int fd) {
 
 static void _refresh_screen(int fd) {
   _write_clear_screen(fd);
+  _write_set_cursor_to_topleft(fd);
+  _write_draw_rows(fd);
   _write_set_cursor_to_topleft(fd);
 }
 
