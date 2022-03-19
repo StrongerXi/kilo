@@ -8,10 +8,8 @@
 // mimics what `ctrl` does in terminal
 #define CTRL_KEY(k) ((k) & 0x1f)
 
-static void _perror_and_exit(const char *s) {
-  perror(s);
-  exit(1);
-}
+static void _perror_and_exit(const char *s);
+static void _clean_up_before_exit();
 
 static void _tcgetattr_or_err(int fd, struct termios* termios) {
   if (tcgetattr(fd, termios) == -1) {
@@ -40,6 +38,26 @@ static int _write_or_err(int fd, void* buf, size_t count) {
     _perror_and_exit("write");
   }
   return ret;
+}
+
+  // look up VT100 escape sequences
+static void _write_clear_screen(int fd) {
+  _write_or_err(fd, "\x1b[2J", 4);
+}
+
+static void _write_set_cursor_to_topleft(int fd) {
+  _write_or_err(fd, "\x1b[H", 3); // default to \x1b[1;1H
+}
+
+static void _perror_and_exit(const char *s) {
+  _clean_up_before_exit();
+  perror(s);
+  exit(1);
+}
+
+static void _clean_up_before_exit() {
+  _write_clear_screen(STDOUT_FILENO);
+  _write_set_cursor_to_topleft(STDOUT_FILENO);
 }
 
 static struct termios _original_termios;
@@ -83,14 +101,14 @@ static void _process_one_key_press(int fd) {
   char ch = _read_key(fd);
   switch (ch) {
     case CTRL_KEY('q'):
+      _clean_up_before_exit();
       exit(0);
   }
 }
 
 static void _refresh_screen(int fd) {
-  // look up VT100 escape sequences
-  _write_or_err(fd, "\x1b[2J", 4); // clear screen
-  _write_or_err(fd, "\x1b[H", 3);  // set cursor position, default to \x1b[1;1H
+  _write_clear_screen(fd);
+  _write_set_cursor_to_topleft(fd);
 }
 
 int main() {
