@@ -30,17 +30,23 @@ static void _enable_terminal_raw_mode() {
       | ISIG   // enable signals INTR, QUIT, [D]SUSP (c-z, c-y, c-c)
       | IEXTEN // enable DISCARD and LNEXT (c-v, c-o)
       );
+  raw.c_cc[VMIN] = 1;    // `read` on terminal return immediately on any input
+  raw.c_cc[VTIME] = 100; // `read` on terminal input waits for at most 0.1s
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
 // Return 0 on EOF
 static void _process_user_input_from_stdin() {
-  char ch;
-  while (read(STDIN_FILENO, &ch, 1) && ch != 'q') {
+  while (1) {
+    char ch = '\0';
+    read(STDIN_FILENO, &ch, 1);
     if (iscntrl(ch)) {
       printf("%d\r\n", ch);
     } else {
       printf("%d ('%c')\r\n", ch, ch);
+    }
+    if (ch == 'q') {
+      break;
     }
   }
 }
