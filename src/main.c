@@ -89,7 +89,8 @@ static void _process_one_key_press(int fd) {
 
 static void _refresh_screen(int fd) {
   // look up VT100 escape sequences
-  _write_or_err(fd, "\x1b[2J", 4);
+  _write_or_err(fd, "\x1b[2J", 4); // clear screen
+  _write_or_err(fd, "\x1b[H", 3);  // set cursor position, default to \x1b[1;1H
 }
 
 int main() {
