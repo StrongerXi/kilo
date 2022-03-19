@@ -5,6 +5,9 @@
 #include <termios.h>
 #include <unistd.h>
 
+// mimics what `ctrl` does in terminal
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 static void _perror_and_exit(const char *s) {
   perror(s);
   exit(1);
@@ -70,7 +73,7 @@ static void _process_user_input_from_stdin() {
     } else {
       printf("%d ('%c')\r\n", ch, ch);
     }
-    if (ch == 'q') {
+    if (ch == CTRL_KEY('q')) {
       break;
     }
   }
