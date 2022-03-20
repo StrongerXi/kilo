@@ -18,6 +18,8 @@ typedef struct {
 } byte_buf_t;
 
 typedef struct {
+  int cursor_row;
+  int cursor_col;
   int screen_rows;
   int screen_cols;
   int input_fd;
@@ -105,6 +107,12 @@ static void _append_erase_line(byte_buf_t* buf) {
 
 static void _append_set_cursor_to_topleft(byte_buf_t* buf) {
   _append_byte_buf(buf, "\x1b[H", 4); // default to (1, 1)
+}
+
+static void _append_set_cursor_to_pos(byte_buf_t* buf, int row, int col) {
+  char msg[80];
+  int count = snprintf(msg, sizeof(msg), "\x1b[%d;%dH", row, col);
+  _append_byte_buf(buf, msg, count);
 }
 
 static void _append_welcome_message(byte_buf_t* buf, unsigned int screen_cols) {
@@ -195,7 +203,9 @@ static void _process_one_key_press(editor_state_t* state) {
 static void _refresh_screen(const editor_state_t* state) {
   _append_set_cursor_to_topleft(state->paint_buf);
   _append_draw_rows(state);
-  _append_set_cursor_to_topleft(state->paint_buf);
+  _append_set_cursor_to_pos(
+    state->paint_buf, state->cursor_row, state->cursor_col
+  );
   _flush_byte_buf(state->paint_buf, state->output_fd);
   _clear_byte_buf(state->paint_buf);
 }
@@ -248,6 +258,8 @@ static editor_state_t* _new_editor_state() {
   _get_screen_size(
     state->input_fd, state->output_fd, &state->screen_rows, &state->screen_cols
   );
+  state->cursor_row = 1;
+  state->cursor_col = 1;
   state->paint_buf = _new_byte_buf();
   if (state->paint_buf == NULL) {
     _perror_and_exit("_init_editor_state -> _new_byte_buf");
