@@ -7,6 +7,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#define KILO_VERSION "0.0.1"
 // mimics what `ctrl` does in terminal
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -42,7 +43,7 @@ static byte_buf_t* _new_byte_buf() {
   return buf;
 }
 
-static void _append_byte_buf(byte_buf_t* buf, char* data, int count) {
+static void _append_byte_buf(byte_buf_t* buf, const char* data, int count) {
   if (buf->size + count > buf->capacity) {
     buf->capacity *= 2;
     buf->buf = realloc(buf->buf, buf->capacity);
@@ -106,10 +107,28 @@ static void _append_set_cursor_to_topleft(byte_buf_t* buf) {
   _append_byte_buf(buf, "\x1b[H", 4); // default to (1, 1)
 }
 
+static void _append_welcome_message(byte_buf_t* buf, unsigned int screen_cols) {
+  const char* msg = "Kilo editor -- version " KILO_VERSION;
+  unsigned int msg_len = strlen(msg);
+  if (msg_len >= screen_cols) {
+    _append_byte_buf(buf, msg, screen_cols);
+  } else { // center message
+    int num_left_space = (screen_cols - msg_len) / 2;
+    char left_spaces[num_left_space];
+    memset(left_spaces, ' ', num_left_space);
+    _append_byte_buf(buf, left_spaces, num_left_space);
+    _append_byte_buf(buf, msg, msg_len);
+  }
+}
+
 static void _append_draw_rows(const editor_state_t* state) {
   for (int y = 1; y <= state->screen_rows; y++) {
     _append_erase_line(state->paint_buf);
-    _append_byte_buf(state->paint_buf, "~", 1);
+    if (y == state->screen_rows / 3) {
+      _append_welcome_message(state->paint_buf, state->screen_cols);
+    } else {
+      _append_byte_buf(state->paint_buf, "~", 1);
+    }
     if (y < state->screen_rows) { // prevent forced terminal scrolling
       _append_byte_buf(state->paint_buf, "\r\n", 2);
     }
