@@ -98,8 +98,8 @@ static int _write_set_cursor_pos(int out_fd, int row, int col) {
 }
 
 // TODO better to use a paint_command buffer, with emulated ADTs
-static void _append_clear_screen(byte_buf_t* buf) {
-  _append_byte_buf(buf, "\x1b[2J", 4);
+static void _append_erase_line(byte_buf_t* buf) {
+  _append_byte_buf(buf, "\x1b[K", 3);
 }
 
 static void _append_set_cursor_to_topleft(byte_buf_t* buf) {
@@ -108,6 +108,7 @@ static void _append_set_cursor_to_topleft(byte_buf_t* buf) {
 
 static void _append_draw_rows(const editor_state_t* state) {
   for (int y = 1; y <= state->screen_rows; y++) {
+    _append_erase_line(state->paint_buf);
     _append_byte_buf(state->paint_buf, "~", 1);
     if (y < state->screen_rows) { // prevent forced terminal scrolling
       _append_byte_buf(state->paint_buf, "\r\n", 2);
@@ -173,7 +174,6 @@ static void _process_one_key_press(editor_state_t* state) {
 }
 
 static void _refresh_screen(const editor_state_t* state) {
-  _append_clear_screen(state->paint_buf);
   _append_set_cursor_to_topleft(state->paint_buf);
   _append_draw_rows(state);
   _append_set_cursor_to_topleft(state->paint_buf);
