@@ -190,11 +190,11 @@ static void _enable_terminal_raw_mode() {
   raw.c_lflag &= ~(
       ECHO     // echo input
       | ICANON // wait till ENTER key to process input
-      //| ISIG   // enable signals INTR, QUIT, [D]SUSP (c-z, c-y, c-c)
+      | ISIG   // enable signals INTR, QUIT, [D]SUSP (c-z, c-y, c-c)
       | IEXTEN // enable DISCARD and LNEXT (c-v, c-o)
       );
-  raw.c_cc[VMIN] = 1;    // `read` on terminal return immediately on any input
-  raw.c_cc[VTIME] = 100; // `read` on terminal input waits for at most 0.1s
+  raw.c_cc[VMIN] = 0;  // `read` on terminal return immediately on any key press
+  raw.c_cc[VTIME] = 1; // `read` on terminal input waits for at most 0.1s
   _tcssetattr_or_err(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
