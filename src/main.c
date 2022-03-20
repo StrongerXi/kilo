@@ -11,6 +11,15 @@
 // mimics what `ctrl` does in terminal
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+enum editor_key {
+  // a hack to avoid mixing up of arrow keys and regular chars
+  // Ideally we should probably emulate ADT
+  ARROW_UP = 1000,
+  ARROW_DOWN,
+  ARROW_LEFT,
+  ARROW_RIGHT,
+};
+
 typedef struct {
   char* buf;
   unsigned int size;
@@ -189,15 +198,44 @@ static void _enable_terminal_raw_mode() {
   _tcssetattr_or_err(STDIN_FILENO, TCSAFLUSH, &raw);
 }
 
-static char _read_key(int fd) {
+static int _read_key(int fd) {
   char ch;
   while (_read_or_err(fd, &ch, 1) != 1);
-  return ch;
+  if (ch == '\x1b') { // escape key
+    char seq[2];
+    if (read(STDIN_FILENO, &seq[0], 1) != 1
+        || seq[0] != '['
+        || read(STDIN_FILENO, &seq[1], 1) != 1
+       ) {
+      return '\x1b';
+    }
+    switch (seq[1]) { // based on standard arrow key mapping
+      case 'A': return ARROW_UP;
+      case 'B': return ARROW_DOWN;
+      case 'C': return ARROW_RIGHT;
+      case 'D': return ARROW_LEFT;
+    }
+    return '\x1b';
+  } else {
+    return ch;
+  }
 }
 
 static void _process_one_key_press(editor_state_t* state) {
-  char ch = _read_key(state->input_fd);
+  int ch = _read_key(state->input_fd);
   switch (ch) {
+    case ARROW_UP:
+      if (state->cursor_row > 1) state->cursor_row -= 1;
+      break;
+    case ARROW_DOWN:
+      if (state->cursor_row < state->screen_rows) state->cursor_row += 1;
+      break;
+    case ARROW_LEFT:
+      if (state->cursor_col > 1) state->cursor_col -= 1;
+      break;
+    case ARROW_RIGHT:
+      if (state->cursor_col < state->screen_rows) state->cursor_col += 1;
+      break;
     case CTRL_KEY('q'):
       _clean_up_before_exit();
       exit(0);
