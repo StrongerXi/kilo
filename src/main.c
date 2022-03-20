@@ -18,10 +18,10 @@ typedef struct {
 } byte_buf_t;
 
 typedef struct {
-  int cursor_row;
-  int cursor_col;
-  int screen_rows;
-  int screen_cols;
+  unsigned int cursor_row;
+  unsigned int cursor_col;
+  unsigned int screen_rows;
+  unsigned int screen_cols;
   int input_fd;
   int output_fd;
   byte_buf_t* paint_buf;
@@ -94,7 +94,9 @@ static void _write_clear_screen(int fd) {
 }
 
 // Return 0 on success
-static int _write_set_cursor_pos(int out_fd, int row, int col) {
+static int _write_set_cursor_pos(
+  int out_fd, unsigned int row, unsigned int col
+) {
   char buf[80];
   int count = snprintf(buf, sizeof(buf), "\x1b[%d;%dH", row, col);
   return write(out_fd, buf, count) != count;
@@ -109,7 +111,9 @@ static void _append_set_cursor_to_topleft(byte_buf_t* buf) {
   _append_byte_buf(buf, "\x1b[H", 4); // default to (1, 1)
 }
 
-static void _append_set_cursor_to_pos(byte_buf_t* buf, int row, int col) {
+static void _append_set_cursor_to_pos(
+  byte_buf_t* buf, unsigned int row, unsigned int col
+) {
   char msg[80];
   int count = snprintf(msg, sizeof(msg), "\x1b[%d;%dH", row, col);
   _append_byte_buf(buf, msg, count);
@@ -130,7 +134,7 @@ static void _append_welcome_message(byte_buf_t* buf, unsigned int screen_cols) {
 }
 
 static void _append_draw_rows(const editor_state_t* state) {
-  for (int y = 1; y <= state->screen_rows; y++) {
+  for (unsigned int y = 1; y <= state->screen_rows; y++) {
     _append_erase_line(state->paint_buf);
     if (y == state->screen_rows / 3) {
       _append_welcome_message(state->paint_buf, state->screen_cols);
@@ -210,7 +214,9 @@ static void _refresh_screen(const editor_state_t* state) {
   _clear_byte_buf(state->paint_buf);
 }
 
-int _write_get_cursor_pos(int in_fd, int out_fd, int *row, int *col) {
+int _write_get_cursor_pos(
+  int in_fd, int out_fd, unsigned int *row, unsigned int *col
+) {
   char buf[80];
   // query cursor position, response "\x1b[rows;cols"
   if (write(out_fd, "\x1b[6n", 4) != 4) return -1;
@@ -225,9 +231,9 @@ int _write_get_cursor_pos(int in_fd, int out_fd, int *row, int *col) {
 }
 
 static void _write_query_screen_size(
-  int in_fd, int out_fd, int* rows, int* cols
+  int in_fd, int out_fd, unsigned int* rows, unsigned int* cols
 ) {
-  int original_row, original_col;
+  unsigned int original_row, original_col;
   _write_get_cursor_pos(in_fd, out_fd, &original_row, &original_col);
   if (write(out_fd, "\x1b[9999C\x1b[9999B", 14) != 14) {
     _perror_and_exit("_write_query_screen_size");
@@ -238,7 +244,9 @@ static void _write_query_screen_size(
   }
 }
 
-static void _get_screen_size(int in_fd, int out_fd, int* rows, int* cols) {
+static void _get_screen_size(
+  int in_fd, int out_fd, unsigned int* rows, unsigned int* cols
+) {
   struct winsize ws;
   if (ioctl(out_fd, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
     _write_query_screen_size(in_fd, out_fd, rows, cols);
